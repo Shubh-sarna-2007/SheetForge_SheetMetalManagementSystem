@@ -82,6 +82,30 @@ public class Main {
                     completeProduction();
                     break;
 
+                case 13:
+                    addStaff();
+                    break;
+
+                case 14:
+                    viewStaff();
+                    break;
+
+                case 15:
+                    bookMachine();
+                    break;
+
+                case 16:
+                    viewBookings();
+                    break;
+
+                case 17:
+                    cancelBooking();
+                    break;
+
+                case 18:
+                    createProcessPipeline();
+                    break;
+
                 case 0:
                     System.out.println("\nExiting SheetForge...");
                     System.out.println("Thank you!");
@@ -122,6 +146,15 @@ public class Main {
 
         System.out.println("11. Start Production");
         System.out.println("12. Complete Production");
+
+        System.out.println("13. Add Staff");
+        System.out.println("14. View Staff");
+
+        System.out.println("15. Book Machine");
+        System.out.println("16. View Machine Bookings");
+
+        System.out.println("17. Cancel Machine Booking");
+        System.out.println("18. Create Process Pipeline");
 
         System.out.println("0. Exit");
 
@@ -688,4 +721,231 @@ public class Main {
 
         foundOrder.completeProduction();
     }
+    static void addStaff() {
+
+        System.out.println("\n===== ADD STAFF =====");
+
+        System.out.print("Enter Staff ID: ");
+        int id = scanner.nextInt();
+        scanner.nextLine();
+
+        System.out.print("Enter Name: ");
+        String name = scanner.nextLine();
+
+        System.out.print("Enter Role: ");
+        String role = scanner.nextLine();
+
+        System.out.print("Enter Phone: ");
+        String phone = scanner.nextLine();
+
+        Staff staff = new Staff(id, name, role, phone);
+
+        staffList.add(staff);
+
+        System.out.println("Staff added successfully!");
+    }
+
+    static void viewStaff() {
+
+        System.out.println("\n===== STAFF LIST =====");
+
+        if (staffList.isEmpty()) {
+            System.out.println("No staff available.");
+            return;
+        }
+
+        for (Staff staff : staffList) {
+            staff.displayDetails();
+        }
+    }
+
+    static void bookMachine() {
+
+        if (machines.isEmpty()) {
+            System.out.println("No machines available.");
+            return;
+        }
+
+        if (staffList.isEmpty()) {
+            System.out.println("No staff available.");
+            return;
+        }
+
+        System.out.println("\n===== SELECT MACHINE =====");
+
+        for (int i = 0; i < machines.size(); i++) {
+            System.out.println(
+                    (i + 1) + ". " + machines.get(i).getMachineName()
+            );
+        }
+
+        System.out.print("Select machine: ");
+        int machineChoice = scanner.nextInt();
+        scanner.nextLine();
+
+        if (machineChoice < 1 || machineChoice > machines.size()) {
+            System.out.println("Invalid machine choice.");
+            return;
+        }
+
+        System.out.println("\n===== SELECT STAFF =====");
+
+        for (int i = 0; i < staffList.size(); i++) {
+            System.out.println(
+                    (i + 1) + ". " + staffList.get(i).getName()
+            );
+        }
+
+        System.out.print("Select staff: ");
+        int staffChoice = scanner.nextInt();
+        scanner.nextLine();
+
+        if (staffChoice < 1 || staffChoice > staffList.size()) {
+            System.out.println("Invalid staff choice.");
+            return;
+        }
+
+        Machine machine = machines.get(machineChoice - 1);
+        Staff staff = staffList.get(staffChoice - 1);
+
+        System.out.print("Enter date: ");
+        String date = scanner.nextLine();
+
+        System.out.print("Enter start time: ");
+        String startTime = scanner.nextLine();
+
+        System.out.print("Enter end time: ");
+        String endTime = scanner.nextLine();
+
+        int bookingId = bookings.size() + 1;
+
+        MachineBooking booking =
+                new MachineBooking(
+                        bookingId,
+                        machine,
+                        staff,
+                        date,
+                        startTime,
+                        endTime
+                );
+
+        bookings.add(booking);
+
+        machine.setStatus("BOOKED");
+        staff.setStatus("ASSIGNED");
+
+        System.out.println("Machine booked successfully!");
+    }
+
+    static void viewBookings() {
+
+        System.out.println("\n===== MACHINE BOOKINGS =====");
+
+        if (bookings.isEmpty()) {
+            System.out.println("No bookings available.");
+            return;
+        }
+
+        for (MachineBooking booking : bookings) {
+            booking.displayBooking();
+        }
+    }
+
+    static void cancelBooking() {
+
+        if (bookings.isEmpty()) {
+            System.out.println("No bookings available.");
+            return;
+        }
+
+        System.out.print("Enter Booking ID: ");
+        int id = scanner.nextInt();
+
+        MachineBooking found = null;
+
+        for (MachineBooking booking : bookings) {
+
+            if (booking.getBookingId() == id) {
+                found = booking;
+                break;
+            }
+        }
+
+        if (found == null) {
+            System.out.println("Booking not found.");
+            return;
+        }
+
+        found.cancelBooking();
+
+        found.getMachine().setStatus("AVAILABLE");
+        found.getStaff().setStatus("AVAILABLE");
+
+        System.out.println("Booking cancelled successfully.");
+    }
+
+    static void createProcessPipeline() {
+
+        ProcessPipeline pipeline = new ProcessPipeline();
+
+        boolean running = true;
+
+        while (running) {
+
+            System.out.println("\n===== ADD MANUFACTURING PROCESS =====");
+
+            System.out.println("1. Cutting");
+            System.out.println("2. Bending");
+            System.out.println("3. Punching");
+            System.out.println("4. Welding");
+            System.out.println("5. Finishing");
+            System.out.println("0. Finish Pipeline");
+
+            System.out.print("Enter choice: ");
+            int choice = scanner.nextInt();
+
+            ManufacturingProcess process = null;
+
+            switch (choice) {
+
+                case 1:
+                    process = new Cutting();
+                    break;
+
+                case 2:
+                    process = new Bending();
+                    break;
+
+                case 3:
+                    process = new Punching();
+                    break;
+
+                case 4:
+                    process = new Welding();
+                    break;
+
+                case 5:
+                    process = new Finishing();
+                    break;
+
+                case 0:
+                    running = false;
+                    continue;
+
+                default:
+                    System.out.println("Invalid choice.");
+                    continue;
+            }
+
+            pipeline.addProcess(process);
+
+            System.out.println(
+                    process.getProcessName() +
+                            " added to pipeline."
+            );
+        }
+
+        pipeline.displayPipeline();
+    }
+
 }
