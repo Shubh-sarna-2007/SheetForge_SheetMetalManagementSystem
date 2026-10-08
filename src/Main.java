@@ -11,6 +11,9 @@ public class Main {
     static ArrayList<Machine> machines = new ArrayList<>();
     static ArrayList<CustomProduct> products = new ArrayList<>();
     static ArrayList<ProductionOrder> orders = new ArrayList<>();
+    static ArrayList<Staff> staffList = new ArrayList<>();
+
+    static ArrayList<MachineBooking> bookings = new ArrayList<>();
 
 
     public static void main(String[] args) {
