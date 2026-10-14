@@ -9,7 +9,7 @@ public class CostCalculator {
 
     public static double calculateProcessCost(
             ProcessPipeline pipeline,
-            int quantity) {
+            int quantity ) {
 
         return pipeline.calculateTotalProcessCost(quantity);
     }
