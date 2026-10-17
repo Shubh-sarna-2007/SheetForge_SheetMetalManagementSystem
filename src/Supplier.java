@@ -1,6 +1,3 @@
-
-package src;
-
 public class Supplier {
     private int supplier_id;
     private String name;

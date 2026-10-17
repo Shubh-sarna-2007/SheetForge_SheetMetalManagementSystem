@@ -7,6 +7,7 @@ public class Main {
 
     // ArrayLists to store multiple objects
     static ArrayList<Customer> customers = new ArrayList<>();
+    static ArrayList<Supplier> suppliers = new ArrayList<>();
     static ArrayList<RawMaterial> materials = new ArrayList<>();
     static ArrayList<Machine> machines = new ArrayList<>();
     static ArrayList<CustomProduct> products = new ArrayList<>();
@@ -29,8 +30,15 @@ public class Main {
             showMenu();
 
             System.out.print("\nEnter your choice: ");
-            choice = scanner.nextInt();
-            scanner.nextLine();
+            try {
+                choice = scanner.nextInt();
+                scanner.nextLine();
+            } catch (Exception e) {
+                System.out.println("Invalid input! Please enter a valid menu number.");
+                scanner.nextLine();
+                choice = -1;
+                continue;
+            }
 
             switch (choice) {
 
@@ -105,6 +113,13 @@ public class Main {
                 case 18:
                     createProcessPipeline();
                     break;
+                case 19:
+                    addSupplier();
+                    break;
+
+                case 20:
+                    viewSuppliers();
+                    break;
 
                 case 0:
                     System.out.println("\nExiting SheetForge...");
@@ -155,6 +170,8 @@ public class Main {
 
         System.out.println("17. Cancel Machine Booking");
         System.out.println("18. Create Process Pipeline");
+        System.out.println("19. Add Supplier");
+        System.out.println("20. View Suppliers");
 
         System.out.println("0. Exit");
 
@@ -170,9 +187,16 @@ public class Main {
 
         System.out.println("\n--- ADD CUSTOMER ---");
 
-        System.out.print("Customer ID: ");
-        int id = scanner.nextInt();
-        scanner.nextLine();
+        System.out.print("Customer ID (number): ");
+        int id;
+        try {
+            id = scanner.nextInt();
+            scanner.nextLine();
+        } catch (Exception e) {
+            System.out.println("Invalid ID! Customer ID must be an integer number.");
+            scanner.nextLine();
+            return;
+        }
 
         System.out.print("Name: ");
         String name = scanner.nextLine();
@@ -186,6 +210,13 @@ public class Main {
         System.out.print("Email: ");
         String email = scanner.nextLine();
 
+        try {
+            ValidationUtil.validateText(name, "Customer Name");
+            ValidationUtil.validatePhone(phone);
+        } catch (IllegalArgumentException e) {
+            System.out.println("Validation Error: " + e.getMessage());
+            return;
+        }
 
         Customer customer = new Customer(
                 id,
@@ -368,6 +399,13 @@ public class Main {
         int quantity = scanner.nextInt();
         scanner.nextLine();
 
+        try {
+            ValidationUtil.validateText(name, "Product Name");
+            ValidationUtil.validateQuantity(quantity);
+        } catch (IllegalArgumentException | InvalidQuantityException e) {
+            System.out.println("Validation Error: " + e.getMessage());
+            return;
+        }
 
         CustomProduct product = new CustomProduct(
                 id,
@@ -551,8 +589,11 @@ public class Main {
         // SELECT PROCESS
 
         System.out.println("\nSelect Manufacturing Process:");
-        System.out.println("1. Cutting");
-        System.out.println("2. Bending");
+        System.out.println("1. Cutting (Rs. 50/unit)");
+        System.out.println("2. Bending (Rs. 30/unit)");
+        System.out.println("3. Punching (Rs. 40/unit)");
+        System.out.println("4. Welding (Rs. 70/unit)");
+        System.out.println("5. Finishing (Rs. 35/unit)");
 
         System.out.print("Enter choice: ");
         int processChoice = scanner.nextInt();
@@ -561,15 +602,16 @@ public class Main {
         ManufacturingProcess selectedProcess;
 
         if (processChoice == 1) {
-
             selectedProcess = new Cutting();
-
         } else if (processChoice == 2) {
-
             selectedProcess = new Bending();
-
+        } else if (processChoice == 3) {
+            selectedProcess = new Punching();
+        } else if (processChoice == 4) {
+            selectedProcess = new Welding();
+        } else if (processChoice == 5) {
+            selectedProcess = new Finishing();
         } else {
-
             System.out.println("Invalid process choice!");
             return;
         }
@@ -676,8 +718,11 @@ public class Main {
         }
 
 
-        foundOrder.startProduction();
-    }
+        try {
+            foundOrder.startProduction();
+        } catch (MachineUnavailableException | InsufficientMaterialException e) {
+            System.out.println("\n[ERROR] Production could not start: " + e.getMessage());
+        }
 
 
     // ==========================================
@@ -725,9 +770,16 @@ public class Main {
 
         System.out.println("\n===== ADD STAFF =====");
 
-        System.out.print("Enter Staff ID: ");
-        int id = scanner.nextInt();
-        scanner.nextLine();
+        System.out.print("Enter Staff ID (number): ");
+        int id;
+        try {
+            id = scanner.nextInt();
+            scanner.nextLine();
+        } catch (Exception e) {
+            System.out.println("Invalid ID! Staff ID must be an integer number.");
+            scanner.nextLine();
+            return;
+        }
 
         System.out.print("Enter Name: ");
         String name = scanner.nextLine();
@@ -737,6 +789,14 @@ public class Main {
 
         System.out.print("Enter Phone: ");
         String phone = scanner.nextLine();
+
+        try {
+            ValidationUtil.validateText(name, "Staff Name");
+            ValidationUtil.validatePhone(phone);
+        } catch (IllegalArgumentException e) {
+            System.out.println("Validation Error: " + e.getMessage());
+            return;
+        }
 
         Staff staff = new Staff(id, name, role, phone);
 
@@ -859,7 +919,15 @@ public class Main {
         }
 
         System.out.print("Enter Booking ID: ");
-        int id = scanner.nextInt();
+        int id;
+        try {
+            id = scanner.nextInt();
+            scanner.nextLine();
+        } catch (Exception e) {
+            System.out.println("Invalid input! Booking ID must be a number.");
+            scanner.nextLine();
+            return;
+        }
 
         MachineBooking found = null;
 
@@ -884,6 +952,71 @@ public class Main {
         System.out.println("Booking cancelled successfully.");
     }
 
+    // ==========================================
+    // SUPPLIER METHODS
+    // ==========================================
+
+    static void addSupplier() {
+        System.out.println("\n===== ADD SUPPLIER =====");
+
+        System.out.print("Supplier ID (number): ");
+        int id;
+        try {
+            id = scanner.nextInt();
+            scanner.nextLine();
+        } catch (Exception e) {
+            System.out.println("Invalid ID! Supplier ID must be an integer number.");
+            scanner.nextLine();
+            return;
+        }
+
+        System.out.print("Name: ");
+        String name = scanner.nextLine();
+
+        System.out.print("Company: ");
+        String company = scanner.nextLine();
+
+        System.out.print("Phone: ");
+        String phone = scanner.nextLine();
+
+        System.out.print("Email: ");
+        String email = scanner.nextLine();
+
+        System.out.print("Product Supplied: ");
+        String product = scanner.nextLine();
+
+        try {
+            ValidationUtil.validateText(name, "Supplier Name");
+            ValidationUtil.validatePhone(phone);
+        } catch (IllegalArgumentException e) {
+            System.out.println("Validation Error: " + e.getMessage());
+            return;
+        }
+
+        Supplier supplier = new Supplier(
+                id, name, company, phone, email, product
+        );
+
+        suppliers.add(supplier);
+
+        System.out.println("Supplier added successfully!");
+    }
+
+    static void viewSuppliers() {
+        System.out.println("\n===== SUPPLIER DIRECTORY =====");
+
+        if (suppliers.isEmpty()) {
+            System.out.println("No suppliers available.");
+            return;
+        }
+
+        for (Supplier supplier : suppliers) {
+            supplier.displayDetails();
+            System.out.println("----------------------------");
+        }
+    }
+
+
     static void createProcessPipeline() {
 
         ProcessPipeline pipeline = new ProcessPipeline();
@@ -902,7 +1035,15 @@ public class Main {
             System.out.println("0. Finish Pipeline");
 
             System.out.print("Enter choice: ");
-            int choice = scanner.nextInt();
+            int choice;
+            try {
+                choice = scanner.nextInt();
+                scanner.nextLine();
+            } catch (Exception e) {
+                System.out.println("Invalid input! Please enter a number.");
+                scanner.nextLine();
+                continue;
+            }
 
             ManufacturingProcess process = null;
 

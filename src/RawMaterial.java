@@ -44,14 +44,16 @@ public class RawMaterial {
     public double getPricePerSheet() {
         return pricePerSheet;
     }
-    public void reduceQuantity(int amount){
-        if(amount>quantity){
-            System.out.println("Insufficient Material");
-            return;
+    public void reduceQuantity(int amount) throws InsufficientMaterialException {
+        if (amount > quantity) {
+            throw new InsufficientMaterialException(
+                    "Insufficient Material for " + materialName +
+                    " (Requested: " + amount + " sheets, Available: " + quantity + " sheets)"
+            );
         }
-        quantity = quantity-amount;
+        quantity = quantity - amount;
     }
-    public void addQuantity(int amount){
+    public void addQuantity(int amount) {
         quantity = quantity + amount;
     }
     public void displayDetails() {

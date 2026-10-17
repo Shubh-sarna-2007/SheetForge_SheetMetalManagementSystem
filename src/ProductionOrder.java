@@ -29,55 +29,54 @@ public class ProductionOrder {
         this.status = "PENDING";
     }
     public void calculateCost() {
+        // Calculate sheets required using dimensions and 10% standard wastage
+        double requiredArea = product.getLength() * product.getWidth() * product.getQuantity();
+        int sheetsRequired = CostCalculator.calculateSheetsRequired(
+                requiredArea,
+                material.getLength(),
+                material.getWidth(),
+                10.0
+        );
+        if (sheetsRequired < 1) sheetsRequired = 1;
 
-        // Temporary basic calculation for Version 1
+        double materialCost = CostCalculator.calculateMaterialCost(material, sheetsRequired);
+        double processCost = process.calculateCost(product.getQuantity());
+        double machineCost = CostCalculator.calculateMachineCost(machine, 2.0);
 
-        int sheetsRequired = 1;
+        double baseProductionCost = materialCost + processCost + machineCost;
+        double overhead = CostCalculator.calculateOverhead(baseProductionCost);
 
-        double materialCost =
-                sheetsRequired * material.getPricePerSheet();
-
-        double processCost =
-                process.calculateCost(product.getQuantity());
-
-        // Assume machine is used for 2 hours for now
-        double machineCost =
-                machine.getCostPerHour() * 2;
-
-        totalCost =
-                materialCost + processCost + machineCost;
-
-        // 20% profit
-        finalPrice = totalCost * 1.20;
+        totalCost = baseProductionCost + overhead;
+        finalPrice = CostCalculator.calculateFinalPrice(totalCost, 20.0);
     }
-    public boolean startProduction() {
 
+    public boolean startProduction() throws MachineUnavailableException, InsufficientMaterialException {
         if (!machine.isAvailable()) {
-
-            System.out.println(
-                    "Production cannot start. Machine is not available.");
-
-            return false;
+            throw new MachineUnavailableException(
+                    "Machine '" + machine.getMachineName() + "' is currently " + machine.getStatus() + " and unavailable for production."
+            );
         }
 
-        int sheetsRequired = 1;
+        double requiredArea = product.getLength() * product.getWidth() * product.getQuantity();
+        int sheetsRequired = CostCalculator.calculateSheetsRequired(
+                requiredArea,
+                material.getLength(),
+                material.getWidth(),
+                10.0
+        );
+        if (sheetsRequired < 1) sheetsRequired = 1;
 
         if (material.getQuantity() < sheetsRequired) {
-
-            System.out.println(
-                    "Production cannot start. Insufficient material.");
-
-            return false;
+            throw new InsufficientMaterialException(
+                    "Insufficient Material for order: Needed " + sheetsRequired + " sheets, but only " + material.getQuantity() + " available in stock."
+            );
         }
 
         material.reduceQuantity(sheetsRequired);
-
         machine.setStatus("IN USE");
-
         status = "IN PRODUCTION";
 
-        System.out.println("\nProduction started successfully!");
-
+        System.out.println("\nProduction started successfully! Deducted " + sheetsRequired + " sheets from inventory.");
         return true;
     }
     public void completeProduction() {
