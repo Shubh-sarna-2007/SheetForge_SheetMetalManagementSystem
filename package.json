@@ -1,0 +1,22 @@
+{
+  "name": "sheetforge",
+  "version": "1.0.0",
+  "description": "SheetForge — Sheet Metal Manufacturing Management System (MES/ERP)",
+  "main": "web/server.js",
+  "scripts": {
+    "start": "node web/server.js"
+  },
+  "keywords": [
+    "sheet-metal",
+    "manufacturing",
+    "erp",
+    "mes",
+    "java",
+    "mysql"
+  ],
+  "author": "SheetForge Team",
+  "license": "ISC",
+  "dependencies": {
+    "mysql2": "^3.24.6"
+  }
+}

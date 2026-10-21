@@ -1,0 +1,12 @@
+# =============================================================================
+# SheetForge — Java JDBC Properties Template
+# =============================================================================
+# Copy this file to 'db.properties' (or 'config/db.properties') and set credentials.
+# DatabaseManager will load this if DB_PASSWORD environment variable is not set.
+# =============================================================================
+
+db.host=localhost
+db.port=3306
+db.name=sheetforge
+db.user=root
+db.password=your_mysql_password_here

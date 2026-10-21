@@ -4,13 +4,19 @@ public class Customer {
     private String company;
     private String phone;
     private String email;
+    private String address;
 
     public Customer(int customer_id, String name, String company, String phone, String email) {
+        this(customer_id, name, company, phone, email, "");
+    }
+
+    public Customer(int customer_id, String name, String company, String phone, String email, String address) {
         this.customer_id = customer_id;
         this.name = name;
         this.company = company;
         this.phone = phone;
         this.email = email;
+        this.address = address != null ? address : "";
     }
 
     public int getCustomer_id() {
@@ -33,11 +39,22 @@ public class Customer {
         return email;
     }
 
+    public String getAddress() {
+        return address;
+    }
+
+    public void setAddress(String address) {
+        this.address = address;
+    }
+
     public void displayDetails(){
         System.out.println("Customer ID : " + customer_id);
         System.out.println("Name        : " + name);
         System.out.println("Company     : " + company);
         System.out.println("Phone       : " + phone);
         System.out.println("Email       : " + email);
+        if (address != null && !address.trim().isEmpty()) {
+            System.out.println("Address     : " + address);
+        }
     }
 }

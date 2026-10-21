@@ -1,29 +1,37 @@
-### IntelliJ IDEA ###
+### Credentials & Local Config ###
+db.properties
+config/db.properties
+.env
+*.env
+*.log
+
+### Dependencies & Package Managers ###
+node_modules/
+
+### Compiled Java Outputs ###
+*.class
+src/*.class
 out/
-!**/src/main/**/out/
-!**/src/test/**/out/
-
-### Eclipse ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
 bin/
-!**/src/main/**/bin/
-!**/src/test/**/bin/
 
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
+### Build Outputs & Temp Files ###
+dist/
+build/
+target/
+*.backup*
+*.bak
+*.old
+scratch/
 
-### VS Code ###
+### IDE & Editor Caches ###
+.idea/
+*.iml
 .vscode/
+.classpath
+.project
+.settings/
+.nbproject/
 
-### Mac OS ###
+### OS Generated Files ###
 .DS_Store
+Thumbs.db

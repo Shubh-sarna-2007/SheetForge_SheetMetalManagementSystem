@@ -25,6 +25,20 @@ public class Main {
         System.out.println("       WELCOME TO SHEETFORGE");
         System.out.println("======================================");
 
+        // Load existing records from MySQL database if configured
+        if (DatabaseManager.isAvailable()) {
+            customers = DatabaseManager.loadCustomers();
+            suppliers = DatabaseManager.loadSuppliers();
+            materials = DatabaseManager.loadMaterials();
+            machines = DatabaseManager.loadMachines();
+            staffList = DatabaseManager.loadStaff();
+            products = DatabaseManager.loadProducts();
+            System.out.println("✅ Connected to MySQL database 'sheetforge'!");
+            System.out.println("   Loaded " + customers.size() + " customers, " + suppliers.size() + " suppliers, " + materials.size() + " materials.");
+        } else {
+            System.out.println("ℹ️  Running in local memory mode (Set DB_PASSWORD to sync with MySQL).");
+        }
+
         do {
 
             showMenu();
@@ -210,6 +224,12 @@ public class Main {
         System.out.print("Email: ");
         String email = scanner.nextLine();
 
+        System.out.print("Address: ");
+        String address = scanner.nextLine();
+        if (address != null && address.length() > 100) {
+            address = address.substring(0, 100);
+        }
+
         try {
             ValidationUtil.validateText(name, "Customer Name");
             ValidationUtil.validatePhone(phone);
@@ -223,10 +243,12 @@ public class Main {
                 name,
                 company,
                 phone,
-                email
+                email,
+                address
         );
 
         customers.add(customer);
+        DatabaseManager.saveCustomer(customer);
 
         System.out.println("Customer added successfully!");
     }
@@ -235,6 +257,10 @@ public class Main {
     public static void viewCustomers() {
 
         System.out.println("\n--- CUSTOMER LIST ---");
+
+        if (DatabaseManager.isAvailable()) {
+            customers = DatabaseManager.loadCustomers();
+        }
 
         if (customers.isEmpty()) {
 
@@ -292,6 +318,7 @@ public class Main {
         );
 
         materials.add(material);
+        DatabaseManager.saveMaterial(material);
 
         System.out.println("Raw material added successfully!");
     }
@@ -300,6 +327,10 @@ public class Main {
     public static void viewMaterials() {
 
         System.out.println("\n--- RAW MATERIAL LIST ---");
+
+        if (DatabaseManager.isAvailable()) {
+            materials = DatabaseManager.loadMaterials();
+        }
 
         if (materials.isEmpty()) {
 
@@ -346,6 +377,7 @@ public class Main {
         );
 
         machines.add(machine);
+        DatabaseManager.saveMachine(machine);
 
         System.out.println("Machine added successfully!");
     }
@@ -354,6 +386,10 @@ public class Main {
     public static void viewMachines() {
 
         System.out.println("\n--- MACHINE LIST ---");
+
+        if (DatabaseManager.isAvailable()) {
+            machines = DatabaseManager.loadMachines();
+        }
 
         if (machines.isEmpty()) {
 
@@ -386,6 +422,12 @@ public class Main {
         System.out.print("Material Name: ");
         String material = scanner.nextLine();
 
+        System.out.print("Description (press Enter for default): ");
+        String description = scanner.nextLine();
+        if (description != null && description.length() > 250) {
+            description = description.substring(0, 250);
+        }
+
         System.out.print("Length (mm): ");
         double length = scanner.nextDouble();
 
@@ -411,6 +453,7 @@ public class Main {
                 id,
                 name,
                 material,
+                description,
                 length,
                 width,
                 thickness,
@@ -418,6 +461,7 @@ public class Main {
         );
 
         products.add(product);
+        DatabaseManager.saveProduct(product);
 
         System.out.println("Custom product created successfully!");
     }
@@ -426,6 +470,10 @@ public class Main {
     public static void viewProducts() {
 
         System.out.println("\n--- PRODUCT LIST ---");
+
+        if (DatabaseManager.isAvailable()) {
+            products = DatabaseManager.loadProducts();
+        }
 
         if (products.isEmpty()) {
 
@@ -719,10 +767,15 @@ public class Main {
 
 
         try {
-            foundOrder.startProduction();
+            boolean started = foundOrder.startProduction();
+            if (started && DatabaseManager.isAvailable()) {
+                DatabaseManager.updateMaterialStock(foundOrder.getMaterial().getMaterialId(), foundOrder.getMaterial().getQuantity());
+                DatabaseManager.updateMachineStatus(foundOrder.getMachine().getMachineId(), "IN USE");
+            }
         } catch (MachineUnavailableException | InsufficientMaterialException e) {
             System.out.println("\n[ERROR] Production could not start: " + e.getMessage());
         }
+    }
 
 
     // ==========================================
@@ -765,6 +818,9 @@ public class Main {
 
 
         foundOrder.completeProduction();
+        if (DatabaseManager.isAvailable()) {
+            DatabaseManager.updateMachineStatus(foundOrder.getMachine().getMachineId(), "AVAILABLE");
+        }
     }
     static void addStaff() {
 
@@ -801,6 +857,7 @@ public class Main {
         Staff staff = new Staff(id, name, role, phone);
 
         staffList.add(staff);
+        DatabaseManager.saveStaff(staff);
 
         System.out.println("Staff added successfully!");
     }
@@ -808,6 +865,10 @@ public class Main {
     static void viewStaff() {
 
         System.out.println("\n===== STAFF LIST =====");
+
+        if (DatabaseManager.isAvailable()) {
+            staffList = DatabaseManager.loadStaff();
+        }
 
         if (staffList.isEmpty()) {
             System.out.println("No staff available.");
@@ -998,12 +1059,17 @@ public class Main {
         );
 
         suppliers.add(supplier);
+        DatabaseManager.saveSupplier(supplier);
 
         System.out.println("Supplier added successfully!");
     }
 
     static void viewSuppliers() {
         System.out.println("\n===== SUPPLIER DIRECTORY =====");
+
+        if (DatabaseManager.isAvailable()) {
+            suppliers = DatabaseManager.loadSuppliers();
+        }
 
         if (suppliers.isEmpty()) {
             System.out.println("No suppliers available.");
