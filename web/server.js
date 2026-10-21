@@ -301,6 +301,13 @@ const server = http.createServer(async (req, res) => {
           const sheetArea = Number(mat.LengthMM) * Number(mat.WidthMM);
           const sheetsNeeded = Math.ceil((totalPartArea * 1.10) / sheetArea) || 1;
 
+          // ── Stock check at order placement ──────────────────────────────
+          if (Number(mat.QuantityInStock) < sheetsNeeded) {
+            return sendJSON(res, {
+              error: `Insufficient stock! Your order requires ${sheetsNeeded} sheet(s) of "${mat.MaterialName}", but only ${mat.QuantityInStock} sheet(s) are currently available. Please reduce your order quantity or contact the factory.`
+            }, 400);
+          }
+
           const materialCost = sheetsNeeded * Number(mat.PricePerSheet);
           let processCost = 0;
           const chosenProcesses = (processIds && processIds.length > 0) ? processIds.map(Number) : [1];
@@ -325,6 +332,12 @@ const server = http.createServer(async (req, res) => {
             ? description.trim().slice(0, 250)
             : `Custom fabricated ${pThick}mm ${mat.MaterialName}`.slice(0, 250);
 
+          // ── Deduct stock immediately at order placement ──────────────────
+          await dbPool.query(
+            'UPDATE RAW_MATERIAL SET QuantityInStock = QuantityInStock - ? WHERE MaterialID = ?',
+            [sheetsNeeded, mat.MaterialID]
+          );
+
           // Insert into PRODUCT table
           const [prodResult] = await dbPool.query(
             'INSERT INTO PRODUCT (ProductName, Description, MaterialID, LengthMM, WidthMM, Thickness, SellingPrice) VALUES (?, ?, ?, ?, ?, ?, ?)',
@@ -341,6 +354,12 @@ const server = http.createServer(async (req, res) => {
             [Number(customerId), newProductId, qty, orderDate, dueDate, materialCost, labourCost, machineCost, overheadCost, totalCost, finalPrice]
           );
           const newOrderId = orderResult.insertId;
+
+          // Record the stock reservation as an INVENTORY_TRANSACTION audit entry
+          await dbPool.query(
+            'INSERT INTO INVENTORY_TRANSACTION (MaterialID, TransactionType, Quantity, TransactionDate, Reference, Notes) VALUES (?, "STOCK_OUT", ?, CURDATE(), ?, ?)',
+            [mat.MaterialID, sheetsNeeded, `ORDER-${newOrderId}`, `Reserved ${sheetsNeeded} sheet(s) for customer order of "${prodName}"`]
+          );
 
           // Insert pipeline into ORDER_PROCESS table
           for (let idx = 0; idx < chosenProcesses.length; idx++) {
@@ -976,6 +995,13 @@ const server = http.createServer(async (req, res) => {
           const sheetArea = Number(mat.LengthMM) * Number(mat.WidthMM);
           const sheetsNeeded = Math.ceil((totalPartArea * 1.10) / sheetArea) || 1;
 
+          // ── Stock check at order placement ──────────────────────────────
+          if (Number(mat.QuantityInStock) < sheetsNeeded) {
+            return sendJSON(res, {
+              error: `Insufficient stock! This order requires ${sheetsNeeded} sheet(s) of "${mat.MaterialName}", but only ${mat.QuantityInStock} sheet(s) are available. Please restock or reduce the order quantity.`
+            }, 400);
+          }
+
           const materialCost = sheetsNeeded * Number(mat.PricePerSheet);
           let processCost = 0;
           const chosenProcesses = (processIds || [1, 2]).map(Number);
@@ -997,11 +1023,23 @@ const server = http.createServer(async (req, res) => {
           const orderDate = new Date().toISOString().split('T')[0];
           const dueDate = new Date(Date.now() + 10 * 86400000).toISOString().split('T')[0];
 
+          // ── Deduct stock immediately at order placement ──────────────────
+          await dbPool.query(
+            'UPDATE RAW_MATERIAL SET QuantityInStock = QuantityInStock - ? WHERE MaterialID = ?',
+            [sheetsNeeded, mat.MaterialID]
+          );
+
           const [orderResult] = await dbPool.query(
             'INSERT INTO PRODUCTION_ORDER (CustomerID, ProductID, RequiredQuantity, OrderDate, DueDate, Status, MaterialCost, LabourCost, MachineCost, OtherCost, TotalCost, FinalPrice) VALUES (?, ?, ?, ?, ?, "PENDING", ?, ?, ?, ?, ?, ?)',
             [Number(customerId), Number(productId), qty, orderDate, dueDate, materialCost, labourCost, machineCost, overheadCost, totalCost, finalPrice]
           );
           const newOrderId = orderResult.insertId;
+
+          // Record the stock reservation as an INVENTORY_TRANSACTION audit entry
+          await dbPool.query(
+            'INSERT INTO INVENTORY_TRANSACTION (MaterialID, TransactionType, Quantity, TransactionDate, Reference, Notes) VALUES (?, "STOCK_OUT", ?, CURDATE(), ?, ?)',
+            [mat.MaterialID, sheetsNeeded, `ORDER-${newOrderId}`, `Reserved ${sheetsNeeded} sheet(s) for production order of "${prod.ProductName}"`]
+          );
 
           for (let idx = 0; idx < chosenProcesses.length; idx++) {
             await dbPool.query(
@@ -1055,20 +1093,7 @@ const server = http.createServer(async (req, res) => {
           const mat = matRows[0];
 
           const partArea = Number(prod.LengthMM) * Number(prod.WidthMM);
-          const sheetsRequired = Math.ceil((partArea * order.RequiredQuantity * 1.10) / (Number(mat.LengthMM) * Number(mat.WidthMM))) || 1;
-
-          if (mat.QuantityInStock < sheetsRequired) {
-            return sendJSON(res, {
-              error: `Insufficient stock! Required: ${sheetsRequired} sheets, Available: ${mat.QuantityInStock} sheets.`
-            }, 400);
-          }
-
-          // Deduct inventory
-          await dbPool.query('UPDATE RAW_MATERIAL SET QuantityInStock = QuantityInStock - ? WHERE MaterialID = ?', [sheetsRequired, mat.MaterialID]);
-          await dbPool.query(
-            'INSERT INTO INVENTORY_TRANSACTION (MaterialID, TransactionType, Quantity, TransactionDate, Reference, Notes) VALUES (?, "STOCK_OUT", ?, CURDATE(), ?, ?)',
-            [mat.MaterialID, sheetsRequired, `ORDER-${order.OrderID}`, `Consumed ${sheetsRequired} sheets for ${prod.ProductName}`]
-          );
+          // (Stock was already deducted when the order was placed — no second deduction here)
 
           // Update machine status
           await dbPool.query('UPDATE MACHINE SET Status = "IN USE" WHERE MachineType LIKE "%Laser%" OR MachineType LIKE "%Cutter%" LIMIT 1');
