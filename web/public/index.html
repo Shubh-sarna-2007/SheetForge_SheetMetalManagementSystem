@@ -1146,71 +1146,51 @@
         <div class="section-card">
           <div class="section-header">
             <div>
-              <h3>🏷️ Instant Fabrication Quote Generator</h3>
+              <h3>🏷️ Instant Sheet Processing & Order Quote</h3>
               <p style="font-size:12px; color:var(--text-muted); margin-top:2px;">
-                Quotes are calculated using latest workshop metal rates set by the owner.
+                Select your sheet metal material, quantity of sheets, and required fabrication processes (cutting, bending, punching, etc.).
               </p>
             </div>
           </div>
 
-          <!-- NOTICE BANNER FOR CUSTOM PART REQUESTS -->
-          <div id="customPartNotice" style="display:none; background:rgba(59,130,246,0.12); border:1px solid rgba(59,130,246,0.3); padding:14px 18px; border-radius:10px; margin-bottom:20px; color:#93c5fd; font-size:13px; line-height:1.5;">
-            ℹ️ <strong>Custom Component Notification:</strong> This item is not in our pre-manufactured standard catalog. However, as bespoke sheet-metal fabricators, our workshop can fabricate any custom component! Configure your dimensions below or call us at <strong>+91-9876543210</strong> to get it built.
-          </div>
-
           <form onsubmit="handleCalculateQuote(event)" style="max-width: 680px;">
-            <div class="form-group">
-              <label>Select Product / Part</label>
-              <select id="quoteProductSelect" class="form-control" onchange="handleProductDropdownChange()">
-                <!-- Populated dynamically -->
-              </select>
-            </div>
-
-            <div class="form-group" id="customPartNameGroup" style="display:none;">
-              <label>Specify Custom Component Name</label>
-              <input type="text" id="quoteCustomName" class="form-control" placeholder="e.g. Stainless Battery Housing (Custom)">
-            </div>
-
             <div class="form-group">
               <label>Select Sheet Material (Market Rate Applied)</label>
               <select id="quoteMatSelect" class="form-control" required></select>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
-              <div class="form-group">
-                <label>Part Length (mm)</label>
-                <input type="number" id="quotePartL" class="form-control" value="500" min="10" required>
-              </div>
-              <div class="form-group">
-                <label>Part Width (mm)</label>
-                <input type="number" id="quotePartW" class="form-control" value="400" min="10" required>
-              </div>
+            <div class="form-group">
+              <label>Number of Sheets Required</label>
+              <input type="number" id="quoteQty" class="form-control" value="5" min="1" required>
+              <small style="color:var(--text-muted); font-size:12px; margin-top:4px; display:block;">
+                Direct inventory deduction: ordering N sheets reserves and deducts exactly N sheets from factory stock.
+              </small>
             </div>
 
             <div class="form-group">
-              <label>Required Quantity</label>
-              <input type="number" id="quoteQty" class="form-control" value="10" min="1" required>
-            </div>
-
-            <div class="form-group">
-              <label>Select Required Fabrication Processes</label>
+              <label>Select Required Fabrication / Processing Operations</label>
               <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 6px;">
                 <label style="background:var(--bg-input); padding:10px; border-radius:6px; border:1px solid var(--border); display:flex; align-items:center; gap:8px; cursor:pointer;">
-                  <input type="checkbox" name="quoteProc" value="1" checked> Cutting
+                  <input type="checkbox" name="quoteProc" value="1" checked> ✂️ Cutting
                 </label>
                 <label style="background:var(--bg-input); padding:10px; border-radius:6px; border:1px solid var(--border); display:flex; align-items:center; gap:8px; cursor:pointer;">
-                  <input type="checkbox" name="quoteProc" value="2" checked> Bending
+                  <input type="checkbox" name="quoteProc" value="2" checked> 📐 Bending
                 </label>
                 <label style="background:var(--bg-input); padding:10px; border-radius:6px; border:1px solid var(--border); display:flex; align-items:center; gap:8px; cursor:pointer;">
-                  <input type="checkbox" name="quoteProc" value="3"> Punching
+                  <input type="checkbox" name="quoteProc" value="3"> 🔘 Punching
                 </label>
                 <label style="background:var(--bg-input); padding:10px; border-radius:6px; border:1px solid var(--border); display:flex; align-items:center; gap:8px; cursor:pointer;">
-                  <input type="checkbox" name="quoteProc" value="4"> Welding
+                  <input type="checkbox" name="quoteProc" value="4"> ⚡ Welding
                 </label>
                 <label style="background:var(--bg-input); padding:10px; border-radius:6px; border:1px solid var(--border); display:flex; align-items:center; gap:8px; cursor:pointer;">
-                  <input type="checkbox" name="quoteProc" value="5"> Finishing
+                  <input type="checkbox" name="quoteProc" value="5"> ✨ Finishing
                 </label>
               </div>
+            </div>
+
+            <div class="form-group">
+              <label>Processing Specifications / Cutting Notes (Optional)</label>
+              <input type="text" id="quoteInstructions" class="form-control" placeholder="e.g. Cut each sheet to 1200×1200mm halves, deburr edges, bend 90° along side">
             </div>
 
             <button type="submit" class="btn btn-success" style="margin-top: 10px;">Calculate Instant Price Quote →</button>
@@ -1220,23 +1200,35 @@
           <div id="quoteResultCard" class="quote-card" style="display: none; max-width: 680px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
               <h4 style="font-size: 16px; color: #60a5fa; font-weight: 700;">Official Quotation Summary</h4>
-              <span class="badge badge-info">Current Owner Rate Applied</span>
+              <span class="badge badge-info">Live Workshop Rates Applied</span>
             </div>
 
             <div class="quote-row">
-              <span style="color:var(--text-muted)">Component:</span>
-              <strong id="qResPartName">-</strong>
-            </div>
-            <div class="quote-row">
               <span style="color:var(--text-muted)">Selected Material:</span>
-              <span id="qResMatName">-</span>
+              <strong id="qResMatName">-</strong>
             </div>
             <div class="quote-row">
-              <span style="color:var(--text-muted)">Sheets Required:</span>
-              <strong id="qResSheets">-</strong>
+              <span style="color:var(--text-muted)">Sheet Size:</span>
+              <span id="qResSheetSize">-</span>
             </div>
             <div class="quote-row">
-              <span style="color:var(--text-muted)">Unit Price:</span>
+              <span style="color:var(--text-muted)">Quantity Ordered:</span>
+              <strong id="qResSheets" style="color:#38bdf8;">-</strong>
+            </div>
+            <div class="quote-row">
+              <span style="color:var(--text-muted)">Applied Processing:</span>
+              <span id="qResProcesses">-</span>
+            </div>
+            <div class="quote-row">
+              <span style="color:var(--text-muted)">Sheet Metal Cost:</span>
+              <span id="qResMatCost">-</span>
+            </div>
+            <div class="quote-row">
+              <span style="color:var(--text-muted)">Processing Operations Cost:</span>
+              <span id="qResProcCost">-</span>
+            </div>
+            <div class="quote-row">
+              <span style="color:var(--text-muted)">Rate per Processed Sheet:</span>
               <span id="qResUnitPrice">-</span>
             </div>
             <div class="quote-row" style="font-size: 17px; margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--border-light);">
@@ -1394,19 +1386,22 @@
   <!-- MODAL: CREATE ORDER (OWNER) -->
   <div id="newOrderModal" class="modal-overlay">
     <div class="modal-box">
-      <h3 style="margin-bottom: 16px;">Create Factory Production Order</h3>
+      <h3 style="margin-bottom: 16px;">Create Sheet Processing Order</h3>
       <form onsubmit="submitOwnerOrder(event)">
         <div class="form-group">
           <label>Select Customer</label>
           <select id="modalOwnerCustomerSelect" class="form-control" required></select>
         </div>
         <div class="form-group">
-          <label>Select Product / Part</label>
-          <select id="modalOwnerProductSelect" class="form-control" required></select>
+          <label>Select Sheet Material</label>
+          <select id="modalOwnerMatSelect" class="form-control" required></select>
         </div>
         <div class="form-group">
-          <label>Required Quantity (Units)</label>
-          <input type="number" id="modalOwnerOrderQty" class="form-control" value="10" min="1" required>
+          <label>Number of Sheets</label>
+          <input type="number" id="modalOwnerOrderQty" class="form-control" value="5" min="1" required>
+          <small style="color:var(--text-muted); font-size:12px; margin-top:2px; display:block;">
+            Deducts sheet count directly from available inventory.
+          </small>
         </div>
         <div style="display:flex; justify-content: flex-end; gap:10px; margin-top:16px;">
           <button type="button" class="btn btn-outline" onclick="closeModal('newOrderModal')">Cancel</button>
@@ -1627,7 +1622,7 @@
             <td><strong>#${o.OrderID}</strong></td>
             <td>${o.CustomerName} <br><small style="color:var(--text-muted)">${o.CustomerCompany}</small></td>
             <td>${o.ProductName}</td>
-            <td><strong>${o.RequiredQuantity}</strong> units</td>
+            <td><strong>${o.RequiredQuantity}</strong> sheet(s)</td>
             <td><span class="badge ${o.Status === 'IN PRODUCTION' ? 'badge-warning' : 'badge-info'}">${o.Status}</span></td>
             <td>${o.DueDate}</td>
             <td style="font-family:var(--font-mono); font-weight:700;">₹${o.FinalPrice.toLocaleString()}</td>
@@ -1656,7 +1651,7 @@
             <td><strong>#${o.OrderID}</strong></td>
             <td>${o.CustomerName} <br><small style="color:var(--text-muted)">${o.CustomerCompany}</small></td>
             <td>${o.ProductName}</td>
-            <td><strong>${o.RequiredQuantity}</strong></td>
+            <td><strong>${o.RequiredQuantity}</strong> sheet(s)</td>
             <td><span class="badge ${o.Status === 'COMPLETED' ? 'badge-success' : o.Status === 'IN PRODUCTION' ? 'badge-warning' : 'badge-info'}">${o.Status}</span></td>
             <td>
               <div class="pipeline">
@@ -1793,7 +1788,9 @@
 
         // HYDRATE SELECTS
         document.getElementById('modalOwnerCustomerSelect').innerHTML = customers.map(c => `<option value="${c.CustomerID}">${c.Name} (${c.Company})</option>`).join('');
-        document.getElementById('modalOwnerProductSelect').innerHTML = products.map(p => `<option value="${p.ProductID}">${p.ProductName} - ₹${p.SellingPrice}</option>`).join('');
+        if (document.getElementById('modalOwnerMatSelect')) {
+          document.getElementById('modalOwnerMatSelect').innerHTML = materials.map(m => `<option value="${m.MaterialID}">${m.MaterialName} (${m.LengthMM}×${m.WidthMM} mm — ₹${m.PricePerSheet}/sheet) [Stock: ${m.QuantityInStock} sheets]</option>`).join('');
+        }
         document.getElementById('ownerMatChoice').innerHTML = materials.map(m => `<option value="${m.MaterialID}" data-len="${m.LengthMM}" data-wid="${m.WidthMM}" data-price="${m.PricePerSheet}">${m.MaterialName} (${m.LengthMM}×${m.WidthMM} mm — ₹${m.PricePerSheet}/sheet)</option>`).join('');
 
         // CUSTOMER CATALOG (FACTORY STOCK QUANTITY STRICTLY HIDDEN FROM CUSTOMER)
@@ -1812,14 +1809,7 @@
 
         // CUSTOMER SELECTS
         document.getElementById('custCalcMatSelect').innerHTML = materials.map(m => `<option value="${m.MaterialID}" data-len="${m.LengthMM}" data-wid="${m.WidthMM}" data-price="${m.PricePerSheet}">${m.MaterialName} (${m.LengthMM}×${m.WidthMM} mm) — ₹${m.PricePerSheet}</option>`).join('');
-        document.getElementById('quoteMatSelect').innerHTML = materials.map(m => `<option value="${m.MaterialID}">${m.MaterialName} (Current Rate: ₹${m.PricePerSheet}/sheet)</option>`).join('');
-
-        // PRODUCT DROPDOWN IN CUSTOMER QUOTE
-        document.getElementById('quoteProductSelect').innerHTML = `
-          ${products.map(p => `<option value="${p.ProductID}" data-len="${p.LengthMM}" data-wid="${p.WidthMM}" data-mat="${p.MaterialID}">${p.ProductName} (${p.LengthMM}×${p.WidthMM} mm)</option>`).join('')}
-          <option value="CUSTOM">✨ Custom Bespoke Component (Enter Dimensions)</option>
-          <option value="UNAVAILABLE">🔍 Search / Other Specific Product...</option>
-        `;
+        document.getElementById('quoteMatSelect').innerHTML = materials.map(m => `<option value="${m.MaterialID}">${m.MaterialName} (${m.LengthMM}×${m.WidthMM} mm — ₹${m.PricePerSheet}/sheet)</option>`).join('');
 
         // CUSTOMER MY ORDERS
         if (currentUser && currentUser.role === 'CUSTOMER') {
@@ -1828,7 +1818,7 @@
             <tr>
               <td><strong>#${o.OrderID}</strong></td>
               <td>${o.ProductName}</td>
-              <td>${o.RequiredQuantity} units</td>
+              <td><strong>${o.RequiredQuantity}</strong> sheet(s)</td>
               <td><span class="badge ${o.Status === 'COMPLETED' ? 'badge-success' : o.Status === 'IN PRODUCTION' ? 'badge-warning' : 'badge-info'}">${o.Status}</span></td>
               <td>
                 <div class="pipeline">
@@ -2101,32 +2091,9 @@
     }
 
     // ========================================================
-    // 11. CUSTOMER PRODUCT SELECTION & UNAVAILABLE NOTICE
+    // 11. SHEET ORDER NAVIGATION
     // ========================================================
-    function handleProductDropdownChange() {
-      const val = document.getElementById('quoteProductSelect').value;
-      const noticeBox = document.getElementById('customPartNotice');
-      const customNameGroup = document.getElementById('customPartNameGroup');
-
-      if (val === 'UNAVAILABLE' || val === 'CUSTOM') {
-        noticeBox.style.display = 'block';
-        customNameGroup.style.display = 'block';
-      } else {
-        noticeBox.style.display = 'none';
-        customNameGroup.style.display = 'none';
-
-        // Auto-fill product specs
-        const opt = document.getElementById('quoteProductSelect').selectedOptions[0];
-        if (opt) {
-          const pL = opt.getAttribute('data-len');
-          const pW = opt.getAttribute('data-wid');
-          const matId = opt.getAttribute('data-mat');
-          if (pL) document.getElementById('quotePartL').value = pL;
-          if (pW) document.getElementById('quotePartW').value = pW;
-          if (matId) document.getElementById('quoteMatSelect').value = matId;
-        }
-      }
-    }
+    function handleProductDropdownChange() {}
 
     function transferToQuote() {
       const coverL = document.getElementById('custCoverL').value || 4800;
@@ -2139,13 +2106,11 @@
       const sW = opt ? (Number(opt.getAttribute('data-wid')) || 1200) : 1200;
       const sheetsRequired = Math.ceil((Number(coverL) * Number(coverW)) / (sL * sW)) || 1;
 
-      document.getElementById('quotePartL').value = coverL;
-      document.getElementById('quotePartW').value = coverW;
       document.getElementById('quoteQty').value = sheetsRequired;
       document.getElementById('quoteMatSelect').value = matId;
-      document.getElementById('quoteProductSelect').value = 'CUSTOM';
-      document.getElementById('customPartNameGroup').style.display = 'block';
-      document.getElementById('quoteCustomName').value = `Area Cladding (${coverL}×${coverW} mm)`;
+      if (document.getElementById('quoteInstructions')) {
+        document.getElementById('quoteInstructions').value = `Area coverage for ${coverL}×${coverW} mm`;
+      }
 
       switchView('customer-quote');
     }
@@ -2155,16 +2120,9 @@
     // ========================================================
     async function handleCalculateQuote(e) {
       e.preventDefault();
-      const pSelect = document.getElementById('quoteProductSelect');
-      const pVal = pSelect.value;
-      let partName = (pVal === 'CUSTOM' || pVal === 'UNAVAILABLE')
-        ? (document.getElementById('quoteCustomName').value || 'Custom Fabricated Component')
-        : pSelect.options[pSelect.selectedIndex].text.split('(')[0].trim();
-
       const matId = document.getElementById('quoteMatSelect').value;
-      const pL = document.getElementById('quotePartL').value;
-      const pW = document.getElementById('quotePartW').value;
       const qty = document.getElementById('quoteQty').value;
+      const instructions = document.getElementById('quoteInstructions') ? document.getElementById('quoteInstructions').value : '';
 
       const checkboxes = document.querySelectorAll('input[name="quoteProc"]:checked');
       const processIds = Array.from(checkboxes).map(c => Number(c.value));
@@ -2173,7 +2131,7 @@
         const res = await fetch('/api/preview-quote', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ materialId: matId, partLength: pL, partWidth: pW, quantity: qty, processIds, partName })
+          body: JSON.stringify({ materialId: matId, quantity: qty, processIds, orderDescription: instructions })
         });
         const data = await res.json();
 
@@ -2186,19 +2144,20 @@
         pendingQuotePayload = {
           customerId: currentUser.customer.CustomerID,
           materialId: matId,
-          partName: partName,
-          partLength: pL,
-          partWidth: pW,
           quantity: qty,
           processIds: processIds,
+          orderDescription: instructions || `${qty} sheet(s) of ${data.materialName} with ${data.processes.join(', ')}`,
           finalPrice: data.finalPrice
         };
 
         // Render quote result card
-        document.getElementById('qResPartName').innerText = `${partName} (Qty: ${qty})`;
         document.getElementById('qResMatName').innerText = `${data.materialName} (Current Rate: ₹${data.materialPrice}/sheet)`;
-        document.getElementById('qResSheets').innerText = `${data.sheetsNeeded} sheet(s) (${data.partsPerSheet} parts/sheet)`;
-        document.getElementById('qResUnitPrice').innerText = `₹${data.unitPrice} / unit`;
+        document.getElementById('qResSheetSize').innerText = data.materialSize;
+        document.getElementById('qResSheets').innerText = `${data.sheetsOrdered} sheet(s)`;
+        document.getElementById('qResProcesses').innerText = data.processes.length > 0 ? data.processes.join(', ') : 'Standard Sheets (No Processing)';
+        document.getElementById('qResMatCost').innerText = `₹${data.materialCost.toLocaleString()}`;
+        document.getElementById('qResProcCost').innerText = `₹${data.processCost.toLocaleString()}`;
+        document.getElementById('qResUnitPrice').innerText = `₹${data.unitPrice} / sheet`;
         document.getElementById('qResTotalPrice').innerText = `₹${data.finalPrice.toLocaleString()}`;
 
         document.getElementById('quoteResultCard').style.display = 'block';
@@ -2213,7 +2172,7 @@
       if (confirm('Are you sure you want to reject this quote?')) {
         pendingQuotePayload = null;
         document.getElementById('quoteResultCard').style.display = 'none';
-        alert('Quote rejected. You may adjust your dimensions or metal type and calculate again.');
+        alert('Quote rejected. You may adjust your sheet quantity or processing options and calculate again.');
       }
     }
 
@@ -2229,7 +2188,7 @@
         const data = await res.json();
 
         if (res.ok) {
-          alert(`🎉 Quote Accepted!\nOrder #${data.order.OrderID} has been added to the production queue.\nA notification has been dispatched to the factory workshop.`);
+          alert(`🎉 Quote Accepted!\nOrder #${data.order.OrderID} has been added to the production queue.\n${data.order.RequiredQuantity} sheet(s) reserved from stock.\nA notification has been dispatched to the factory workshop.`);
           document.getElementById('quoteResultCard').style.display = 'none';
           pendingQuotePayload = null;
           switchView('customer-orders');
@@ -2319,16 +2278,25 @@
     async function submitOwnerOrder(e) {
       e.preventDefault();
       const customerId = document.getElementById('modalOwnerCustomerSelect').value;
-      const productId = document.getElementById('modalOwnerProductSelect').value;
+      const materialId = document.getElementById('modalOwnerMatSelect').value;
       const quantity = document.getElementById('modalOwnerOrderQty').value;
 
-      await fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerId, productId, quantity, processIds: [1, 2, 4, 5] })
-      });
-      closeModal('newOrderModal');
-      loadAllData();
+      try {
+        const res = await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customerId, materialId, quantity, processIds: [1, 2] })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          alert(data.error || 'Failed to create order');
+          return;
+        }
+        closeModal('newOrderModal');
+        loadAllData();
+      } catch (err) {
+        alert('Error creating order: ' + err.message);
+      }
     }
   </script>
 </body>

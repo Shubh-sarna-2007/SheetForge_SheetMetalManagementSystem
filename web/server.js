@@ -280,88 +280,87 @@ const server = http.createServer(async (req, res) => {
         }
       }
 
-      // CUSTOMER REQUEST QUOTE / PLACE ORDER (Inserts into MySQL PRODUCT, PRODUCTION_ORDER, ORDER_PROCESS)
+      // CUSTOMER PLACE SHEET ORDER (Sheet-direct model — no PRODUCT table needed)
       if (pathname === '/api/request-quote' && method === 'POST') {
         const body = await parseBody(req);
-        const { customerId, materialId, partLength, partWidth, thickness, quantity, processIds, partName, description } = body;
+        const { customerId, materialId, quantity, processIds, orderDescription } = body;
 
         try {
           const [matRows] = await dbPool.query('SELECT * FROM RAW_MATERIAL WHERE MaterialID = ?', [Number(materialId)]);
           if (!matRows || matRows.length === 0) return sendJSON(res, { error: 'Material not found' }, 400);
           const mat = matRows[0];
 
-          const qty = Number(quantity) || 1;
-          const pLen = Number(partLength) || 500;
-          const pWid = Number(partWidth) || 400;
-          const pThick = Number(thickness) || Number(mat.Thickness);
+          const qty = Number(quantity) || 1;   // qty = number of sheets being sold
 
-          // Calculate sheet requirement (CostCalculator logic)
-          const partArea = pLen * pWid;
-          const totalPartArea = partArea * qty;
-          const sheetArea = Number(mat.LengthMM) * Number(mat.WidthMM);
-          const sheetsNeeded = Math.ceil((totalPartArea * 1.10) / sheetArea) || 1;
-
-          // ── Stock check at order placement ──────────────────────────────
-          if (Number(mat.QuantityInStock) < sheetsNeeded) {
+          // ── Stock check ──────────────────────────────────────────────────
+          if (Number(mat.QuantityInStock) < qty) {
             return sendJSON(res, {
-              error: `Insufficient stock! Your order requires ${sheetsNeeded} sheet(s) of "${mat.MaterialName}", but only ${mat.QuantityInStock} sheet(s) are currently available. Please reduce your order quantity or contact the factory.`
+              error: `Insufficient stock! You ordered ${qty} sheet(s) of "${mat.MaterialName}", but only ${mat.QuantityInStock} sheet(s) are available. Please reduce your order quantity or contact the factory.`
             }, 400);
           }
 
-          const materialCost = sheetsNeeded * Number(mat.PricePerSheet);
+          // Pricing: sheets × price + processing per sheet + 10% overhead × 1.20 margin
+          const materialCost = qty * Number(mat.PricePerSheet);
           let processCost = 0;
           const chosenProcesses = (processIds && processIds.length > 0) ? processIds.map(Number) : [1];
 
           const [procRows] = await dbPool.query(
-            `SELECT ProcessID, CostPerUnit FROM MANUFACTURING_PROCESS WHERE ProcessID IN (${chosenProcesses.map(() => '?').join(',')})`,
+            `SELECT ProcessID, ProcessName, CostPerUnit FROM MANUFACTURING_PROCESS WHERE ProcessID IN (${chosenProcesses.map(() => '?').join(',')})`,
             chosenProcesses
           );
           procRows.forEach(p => {
             processCost += Number(p.CostPerUnit) * qty;
           });
 
-          const labourCost = qty * 35;
-          const machineCost = qty * 50;
-          const overheadCost = Number(((materialCost + labourCost + machineCost + processCost) * 0.10).toFixed(2));
-          const totalCost = materialCost + labourCost + machineCost + processCost + overheadCost;
+          const overheadCost = Number(((materialCost + processCost) * 0.10).toFixed(2));
+          const totalCost = materialCost + processCost + overheadCost;
           const finalPrice = Number((totalCost * 1.20).toFixed(2));
-          const sellingPrice = Number((finalPrice / qty).toFixed(2));
 
-          const prodName = (partName || `${mat.MaterialType} Custom Component (${pLen}x${pWid}mm)`).slice(0, 150);
-          const prodDesc = (description && typeof description === 'string' && description.trim())
-            ? description.trim().slice(0, 250)
-            : `Custom fabricated ${pThick}mm ${mat.MaterialName}`.slice(0, 250);
+          const orderLabel = (orderDescription && orderDescription.trim())
+            ? orderDescription.trim().slice(0, 150)
+            : `${qty} sheet(s) of ${mat.MaterialName} (${mat.LengthMM}×${mat.WidthMM} mm)`;
 
-          // ── Deduct stock immediately at order placement ──────────────────
-          await dbPool.query(
-            'UPDATE RAW_MATERIAL SET QuantityInStock = QuantityInStock - ? WHERE MaterialID = ?',
-            [sheetsNeeded, mat.MaterialID]
+          // ── Get or create a catalogue PRODUCT row for this material (one per material) ──
+          const [existProd] = await dbPool.query(
+            'SELECT ProductID FROM PRODUCT WHERE MaterialID = ? AND LengthMM = ? AND WidthMM = ? AND Thickness = ? LIMIT 1',
+            [mat.MaterialID, mat.LengthMM, mat.WidthMM, mat.Thickness]
           );
-
-          // Insert into PRODUCT table
-          const [prodResult] = await dbPool.query(
-            'INSERT INTO PRODUCT (ProductName, Description, MaterialID, LengthMM, WidthMM, Thickness, SellingPrice) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [prodName, prodDesc, mat.MaterialID, pLen, pWid, pThick, sellingPrice]
-          );
-          const newProductId = prodResult.insertId;
+          let productId;
+          if (existProd.length > 0) {
+            productId = existProd[0].ProductID;
+            // Keep price in sync
+            await dbPool.query('UPDATE PRODUCT SET SellingPrice = ? WHERE ProductID = ?', [Number(mat.PricePerSheet), productId]);
+          } else {
+            const [newProd] = await dbPool.query(
+              'INSERT INTO PRODUCT (ProductName, Description, MaterialID, LengthMM, WidthMM, Thickness, SellingPrice) VALUES (?, ?, ?, ?, ?, ?, ?)',
+              [`${mat.MaterialName} Sheet`, `Standard sheet of ${mat.MaterialName}`, mat.MaterialID, mat.LengthMM, mat.WidthMM, mat.Thickness, mat.PricePerSheet]
+            );
+            productId = newProd.insertId;
+          }
 
           const orderDate = new Date().toISOString().split('T')[0];
-          const dueDate = new Date(Date.now() + 10 * 86400000).toISOString().split('T')[0];
+          const dueDate = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
 
-          // Insert into PRODUCTION_ORDER table
+          // ── Deduct stock immediately at order placement ───────────────────
+          await dbPool.query(
+            'UPDATE RAW_MATERIAL SET QuantityInStock = QuantityInStock - ? WHERE MaterialID = ?',
+            [qty, mat.MaterialID]
+          );
+
+          // Create PRODUCTION_ORDER (RequiredQuantity = number of sheets)
           const [orderResult] = await dbPool.query(
-            'INSERT INTO PRODUCTION_ORDER (CustomerID, ProductID, RequiredQuantity, OrderDate, DueDate, Status, MaterialCost, LabourCost, MachineCost, OtherCost, TotalCost, FinalPrice) VALUES (?, ?, ?, ?, ?, "PENDING", ?, ?, ?, ?, ?, ?)',
-            [Number(customerId), newProductId, qty, orderDate, dueDate, materialCost, labourCost, machineCost, overheadCost, totalCost, finalPrice]
+            'INSERT INTO PRODUCTION_ORDER (CustomerID, ProductID, RequiredQuantity, OrderDate, DueDate, Status, MaterialCost, LabourCost, MachineCost, OtherCost, TotalCost, FinalPrice) VALUES (?, ?, ?, ?, ?, "PENDING", ?, 0, 0, ?, ?, ?)',
+            [Number(customerId), productId, qty, orderDate, dueDate, materialCost, overheadCost, totalCost, finalPrice]
           );
           const newOrderId = orderResult.insertId;
 
-          // Record the stock reservation as an INVENTORY_TRANSACTION audit entry
+          // Audit trail
           await dbPool.query(
             'INSERT INTO INVENTORY_TRANSACTION (MaterialID, TransactionType, Quantity, TransactionDate, Reference, Notes) VALUES (?, "STOCK_OUT", ?, CURDATE(), ?, ?)',
-            [mat.MaterialID, sheetsNeeded, `ORDER-${newOrderId}`, `Reserved ${sheetsNeeded} sheet(s) for customer order of "${prodName}"`]
+            [mat.MaterialID, qty, `ORDER-${newOrderId}`, `Sold ${qty} sheet(s) of "${mat.MaterialName}" — ${orderLabel}`]
           );
 
-          // Insert pipeline into ORDER_PROCESS table
+          // Processing pipeline
           for (let idx = 0; idx < chosenProcesses.length; idx++) {
             await dbPool.query(
               'INSERT INTO ORDER_PROCESS (OrderID, ProcessID, ProcessSequence, Status) VALUES (?, ?, ?, "PENDING")',
@@ -374,49 +373,38 @@ const server = http.createServer(async (req, res) => {
           const cust = custRows.length > 0 ? custRows[0] : null;
           notifications.unshift({
             id: notifications.length + 1,
-            text: `🔔 New Order #${newOrderId} placed by ${cust ? cust.Name : 'Customer'} (${cust ? cust.Company : ''}) for "${prodName}" (Qty: ${qty}) — Total: ₹${finalPrice.toLocaleString()}`,
+            text: `🔔 New Sheet Order #${newOrderId} placed by ${cust ? cust.Name : 'Customer'} (${cust ? cust.Company : ''}) — ${orderLabel} — Total: ₹${finalPrice.toLocaleString()}`,
             time: new Date().toLocaleTimeString(),
             read: false
           });
 
-          const newOrder = {
-            OrderID: newOrderId,
-            CustomerID: Number(customerId),
-            ProductID: newProductId,
-            RequiredQuantity: qty,
-            OrderDate: orderDate,
-            DueDate: dueDate,
-            Status: 'PENDING',
-            MaterialCost: materialCost,
-            LabourCost: labourCost,
-            MachineCost: machineCost,
-            OtherCost: overheadCost,
-            TotalCost: totalCost,
-            FinalPrice: finalPrice
-          };
-
-          const newProduct = {
-            ProductID: newProductId,
-            ProductName: prodName,
-            Description: prodDesc,
-            MaterialID: mat.MaterialID,
-            LengthMM: pLen,
-            WidthMM: pWid,
-            Thickness: pThick,
-            SellingPrice: sellingPrice
-          };
-
-          return sendJSON(res, { success: true, order: newOrder, product: newProduct });
+          return sendJSON(res, {
+            success: true,
+            order: {
+              OrderID: newOrderId,
+              CustomerID: Number(customerId),
+              RequiredQuantity: qty,
+              OrderDate: orderDate,
+              DueDate: dueDate,
+              Status: 'PENDING',
+              MaterialCost: materialCost,
+              ProcessCost: processCost,
+              OtherCost: overheadCost,
+              TotalCost: totalCost,
+              FinalPrice: finalPrice,
+              OrderLabel: orderLabel
+            }
+          });
         } catch (err) {
           console.error('MySQL request-quote error:', err.message);
-          return sendJSON(res, { error: 'Database error placing order from quote: ' + err.message }, 500);
+          return sendJSON(res, { error: 'Database error placing order: ' + err.message }, 500);
         }
       }
 
-      // PREVIEW QUOTE BEFORE ACCEPT / REJECT (Reads live rates from MySQL)
+      // PREVIEW QUOTE (Sheet-direct model: qty = number of sheets ordered, with processing)
       if (pathname === '/api/preview-quote' && method === 'POST') {
         const body = await parseBody(req);
-        const { materialId, partLength, partWidth, thickness, quantity, processIds, partName } = body;
+        const { materialId, quantity, processIds, orderDescription } = body;
 
         try {
           const [matRows] = await dbPool.query('SELECT * FROM RAW_MATERIAL WHERE MaterialID = ?', [Number(materialId)]);
@@ -424,49 +412,37 @@ const server = http.createServer(async (req, res) => {
           const mat = matRows[0];
 
           const qty = Number(quantity) || 1;
-          const pLen = Number(partLength) || 500;
-          const pWid = Number(partWidth) || 400;
-          const pThick = Number(thickness) || Number(mat.Thickness);
 
-          const partArea = pLen * pWid;
-          const totalPartArea = partArea * qty;
-          const sheetArea = Number(mat.LengthMM) * Number(mat.WidthMM);
-          const sheetsNeeded = Math.ceil((totalPartArea * 1.10) / sheetArea) || 1;
-
-          const materialCost = sheetsNeeded * Number(mat.PricePerSheet);
+          // Price = sheets × rate per sheet
+          const materialCost = qty * Number(mat.PricePerSheet);
           let processCost = 0;
           const chosenProcesses = (processIds && processIds.length > 0) ? processIds.map(Number) : [1];
 
           const [procRows] = await dbPool.query(
-            `SELECT ProcessID, CostPerUnit FROM MANUFACTURING_PROCESS WHERE ProcessID IN (${chosenProcesses.map(() => '?').join(',')})`,
+            `SELECT ProcessID, ProcessName, CostPerUnit FROM MANUFACTURING_PROCESS WHERE ProcessID IN (${chosenProcesses.map(() => '?').join(',')})`,
             chosenProcesses
           );
           procRows.forEach(p => {
             processCost += Number(p.CostPerUnit) * qty;
           });
 
-          const labourCost = qty * 35;
-          const machineCost = qty * 50;
-          const overheadCost = Number(((materialCost + labourCost + machineCost + processCost) * 0.10).toFixed(2));
-          const totalCost = materialCost + labourCost + machineCost + processCost + overheadCost;
+          const overheadCost = Number(((materialCost + processCost) * 0.10).toFixed(2));
+          const totalCost = materialCost + processCost + overheadCost;
           const finalPrice = Number((totalCost * 1.20).toFixed(2));
           const unitPrice = Number((finalPrice / qty).toFixed(2));
 
           return sendJSON(res, {
             materialName: mat.MaterialName,
+            materialSize: `${mat.LengthMM} × ${mat.WidthMM} mm`,
             materialPrice: Number(mat.PricePerSheet),
-            sheetsNeeded,
+            sheetsOrdered: qty,
             materialCost,
-            labourCost,
-            machineCost,
             processCost,
             overheadCost,
             totalCost,
             finalPrice,
             unitPrice,
-            partArea,
-            sheetArea,
-            partsPerSheet: Math.floor(sheetArea / (partArea * 1.10)) || 1
+            processes: procRows.map(p => p.ProcessName)
           });
         } catch (err) {
           console.error('MySQL preview-quote error:', err.message);
@@ -978,31 +954,58 @@ const server = http.createServer(async (req, res) => {
       // CREATE NEW PRODUCTION ORDER (MySQL PRODUCTION_ORDER + ORDER_PROCESS)
       if (pathname === '/api/orders' && method === 'POST') {
         const body = await parseBody(req);
-        const { customerId, productId, quantity, processIds } = body;
+        const { customerId, productId, materialId, quantity, processIds } = body;
 
         try {
-          const [prodRows] = await dbPool.query('SELECT * FROM PRODUCT WHERE ProductID = ?', [Number(productId)]);
-          if (!prodRows || prodRows.length === 0) return sendJSON(res, { error: 'Product not found' }, 400);
-          const prod = prodRows[0];
+          let mat = null;
+          let prodId = null;
+          let prodName = '';
 
-          const [matRows] = await dbPool.query('SELECT * FROM RAW_MATERIAL WHERE MaterialID = ?', [prod.MaterialID]);
-          if (!matRows || matRows.length === 0) return sendJSON(res, { error: 'Material not found' }, 400);
-          const mat = matRows[0];
+          if (materialId) {
+            const [matRows] = await dbPool.query('SELECT * FROM RAW_MATERIAL WHERE MaterialID = ?', [Number(materialId)]);
+            if (!matRows || matRows.length === 0) return sendJSON(res, { error: 'Material not found' }, 400);
+            mat = matRows[0];
 
-          const qty = Number(quantity) || 1;
-          const partArea = Number(prod.LengthMM) * Number(prod.WidthMM);
-          const totalPartArea = partArea * qty;
-          const sheetArea = Number(mat.LengthMM) * Number(mat.WidthMM);
-          const sheetsNeeded = Math.ceil((totalPartArea * 1.10) / sheetArea) || 1;
+            // Get or create standard PRODUCT row for this sheet material
+            const [existProd] = await dbPool.query(
+              'SELECT ProductID, ProductName FROM PRODUCT WHERE MaterialID = ? AND LengthMM = ? AND WidthMM = ? AND Thickness = ? LIMIT 1',
+              [mat.MaterialID, mat.LengthMM, mat.WidthMM, mat.Thickness]
+            );
+            if (existProd.length > 0) {
+              prodId = existProd[0].ProductID;
+              prodName = existProd[0].ProductName;
+            } else {
+              const [newProd] = await dbPool.query(
+                'INSERT INTO PRODUCT (ProductName, Description, MaterialID, LengthMM, WidthMM, Thickness, SellingPrice) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                [`${mat.MaterialName} Sheet`, `Standard sheet of ${mat.MaterialName}`, mat.MaterialID, mat.LengthMM, mat.WidthMM, mat.Thickness, mat.PricePerSheet]
+              );
+              prodId = newProd.insertId;
+              prodName = `${mat.MaterialName} Sheet`;
+            }
+          } else if (productId) {
+            const [prodRows] = await dbPool.query('SELECT * FROM PRODUCT WHERE ProductID = ?', [Number(productId)]);
+            if (!prodRows || prodRows.length === 0) return sendJSON(res, { error: 'Product not found' }, 400);
+            const prod = prodRows[0];
+            prodId = prod.ProductID;
+            prodName = prod.ProductName;
+
+            const [matRows] = await dbPool.query('SELECT * FROM RAW_MATERIAL WHERE MaterialID = ?', [prod.MaterialID]);
+            if (!matRows || matRows.length === 0) return sendJSON(res, { error: 'Material not found' }, 400);
+            mat = matRows[0];
+          } else {
+            return sendJSON(res, { error: 'Material is required' }, 400);
+          }
+
+          const qty = Number(quantity) || 1; // Number of sheets ordered!
 
           // ── Stock check at order placement ──────────────────────────────
-          if (Number(mat.QuantityInStock) < sheetsNeeded) {
+          if (Number(mat.QuantityInStock) < qty) {
             return sendJSON(res, {
-              error: `Insufficient stock! This order requires ${sheetsNeeded} sheet(s) of "${mat.MaterialName}", but only ${mat.QuantityInStock} sheet(s) are available. Please restock or reduce the order quantity.`
+              error: `Insufficient stock! This order requires ${qty} sheet(s) of "${mat.MaterialName}", but only ${mat.QuantityInStock} sheet(s) are available in stock. Please restock or reduce the order quantity.`
             }, 400);
           }
 
-          const materialCost = sheetsNeeded * Number(mat.PricePerSheet);
+          const materialCost = qty * Number(mat.PricePerSheet);
           let processCost = 0;
           const chosenProcesses = (processIds || [1, 2]).map(Number);
 
@@ -1026,19 +1029,19 @@ const server = http.createServer(async (req, res) => {
           // ── Deduct stock immediately at order placement ──────────────────
           await dbPool.query(
             'UPDATE RAW_MATERIAL SET QuantityInStock = QuantityInStock - ? WHERE MaterialID = ?',
-            [sheetsNeeded, mat.MaterialID]
+            [qty, mat.MaterialID]
           );
 
           const [orderResult] = await dbPool.query(
             'INSERT INTO PRODUCTION_ORDER (CustomerID, ProductID, RequiredQuantity, OrderDate, DueDate, Status, MaterialCost, LabourCost, MachineCost, OtherCost, TotalCost, FinalPrice) VALUES (?, ?, ?, ?, ?, "PENDING", ?, ?, ?, ?, ?, ?)',
-            [Number(customerId), Number(productId), qty, orderDate, dueDate, materialCost, labourCost, machineCost, overheadCost, totalCost, finalPrice]
+            [Number(customerId), prodId, qty, orderDate, dueDate, materialCost, labourCost, machineCost, overheadCost, totalCost, finalPrice]
           );
           const newOrderId = orderResult.insertId;
 
           // Record the stock reservation as an INVENTORY_TRANSACTION audit entry
           await dbPool.query(
             'INSERT INTO INVENTORY_TRANSACTION (MaterialID, TransactionType, Quantity, TransactionDate, Reference, Notes) VALUES (?, "STOCK_OUT", ?, CURDATE(), ?, ?)',
-            [mat.MaterialID, sheetsNeeded, `ORDER-${newOrderId}`, `Reserved ${sheetsNeeded} sheet(s) for production order of "${prod.ProductName}"`]
+            [mat.MaterialID, qty, `ORDER-${newOrderId}`, `Reserved ${qty} sheet(s) of "${mat.MaterialName}" for order #${newOrderId}`]
           );
 
           for (let idx = 0; idx < chosenProcesses.length; idx++) {
@@ -1051,7 +1054,8 @@ const server = http.createServer(async (req, res) => {
           const newOrder = {
             OrderID: newOrderId,
             CustomerID: Number(customerId),
-            ProductID: Number(productId),
+            ProductID: prodId,
+            ProductName: prodName,
             RequiredQuantity: qty,
             OrderDate: orderDate,
             DueDate: dueDate,
